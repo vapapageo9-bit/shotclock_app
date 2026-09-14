@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Shot Clock 24/14</title>
+
+<!-- Makes this behave like a real app when added to the iPhone Home Screen -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Shot Clock">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000000">
+<link rel="apple-touch-icon" href="/icon.png">
+<link rel="manifest" href="/manifest.json">
+<style>
+  :root{
+    --bg:#000;
+    --panel:#151518;
+    --led-on:#ff2a1e;
+    --led-on-glow: rgba(255,42,30,.85);
+    --led-off:#1a0403;
+    --green:#2ecc71;
+    --amber:#f5a623;
+    --blue:#3a6df0;
+    --text:#f5f5f7;
+    --muted:#7d7d86;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;overflow-x:hidden;}
+  body{display:flex;flex-direction:column;align-items:center;min-height:100%;padding:20px 14px 40px;}
+  h1{font-size:14px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);margin:0 0 18px;text-align:center;}
+
+  .board{
+    background:#0c0c0e;
+    border-radius:22px;
+    padding:5vw 4vw;
+    box-shadow: 0 0 0 3px #000, 0 0 0 6px #2a2a2e, 0 20px 60px rgba(0,0,0,.7);
+    display:flex;flex-direction:column;align-items:center;gap:10px;
+    transition: box-shadow .15s ease;
+  }
+  .board.buzz{
+    box-shadow: 0 0 0 3px #000, 0 0 0 6px #2a2a2e, 0 0 90px 10px var(--led-on-glow);
+  }
+
+  .mode-row{display:flex;gap:10px;align-items:center;}
+  .mode-badge{
+    font-size:min(3.2vw,16px);letter-spacing:.3em;color:var(--muted);text-transform:uppercase;
+    padding:3px 10px;border:1px solid #333;border-radius:20px;
+  }
+  .mode-badge.active24{color:var(--led-on);border-color:var(--led-on);}
+  .mode-badge.active14{color:var(--blue);border-color:var(--blue);}
+
+  .display{display:flex;align-items:flex-end;gap:min(1.5vw,10px);}
+  .digit{position:relative;width:min(20vw,120px);height:min(34vw,200px);}
+  .seg{position:absolute;background:var(--led-off);transition:background .05s linear, box-shadow .05s linear;}
+  .seg.on{background:var(--led-on);box-shadow:0 0 4px 0 var(--led-on-glow);}
+  /* horizontal segments a, g, d */
+  .seg-a,.seg-g,.seg-d{left:12%;width:76%;height:9%;
+    clip-path:polygon(10% 0%,90% 0%,100% 50%,90% 100%,10% 100%,0% 50%);}
+  .seg-a{top:0%;}
+  .seg-g{top:45.5%;}
+  .seg-d{top:91%;}
+  /* vertical segments f,b (upper) and e,c (lower) */
+  .seg-f,.seg-b,.seg-e,.seg-c{width:11%;height:42%;
+    clip-path:polygon(0% 10%,50% 0%,100% 10%,100% 90%,50% 100%,0% 90%);}
+  .seg-f{left:0%;top:6%;}
+  .seg-b{left:89%;top:6%;}
+  .seg-e{left:0%;top:52%;}
+  .seg-c{left:89%;top:52%;}
+
+  .dot-wrap{display:flex;align-items:flex-end;height:min(34vw,200px);padding-bottom:4%;}
+  .dot{width:min(3vw,18px);height:min(3vw,18px);border-radius:50%;background:var(--led-off);}
+  .dot.on{background:var(--led-on);box-shadow:0 0 10px 2px var(--led-on-glow);}
+
+  .status{margin-top:6px;font-size:13px;color:var(--muted);letter-spacing:.12em;min-height:18px;text-align:center;}
+
+  .controls{margin-top:30px;display:grid;grid-template-columns:1fr 1fr;gap:12px;width:min(92vw,520px);}
+  button{font-family:inherit;font-weight:800;letter-spacing:.03em;border-radius:16px;border:1px solid rgba(255,255,255,.08);
+    cursor:pointer;transition:transform .05s ease, filter .15s ease;color:#fff;}
+  button:active{transform:scale(.96);}
+  .clockBtn{font-size:20px;padding:22px 10px;display:flex;flex-direction:column;align-items:center;gap:6px;}
+  .clockBtn small{font-size:12px;font-weight:600;letter-spacing:.15em;opacity:.85;}
+  #btn24{background:linear-gradient(180deg,#ff4438,#c81f16);}
+  #btn24.running{background:linear-gradient(180deg,#3a3a40,#222226);}
+  #btn14{background:linear-gradient(180deg,#4a86ff,#274fc4);}
+  #btn14.running{background:linear-gradient(180deg,#3a3a40,#222226);}
+  #resetBtn{grid-column:span 2;background:var(--panel);color:var(--text);font-size:16px;padding:16px;
+    border:1px solid rgba(255,255,255,.12);}
+  #fsBtn{grid-column:span 2;background:transparent;color:var(--muted);font-size:13px;padding:10px;
+    border:1px dashed rgba(255,255,255,.15);}
+  .manual-set{grid-column:span 2;display:flex;gap:10px;}
+  .manual-set input{flex:1;font-family:inherit;font-size:18px;font-weight:700;text-align:center;
+    background:var(--panel);color:var(--led-on);border:1px solid rgba(255,255,255,.12);border-radius:14px;
+    padding:14px 10px;-moz-appearance:textfield;}
+  .manual-set input::-webkit-outer-spin-button,
+  .manual-set input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+  .manual-set button{background:var(--blue);padding:0 20px;font-size:15px;}
+
+  /* ---- Fullscreen: show ONLY the clock ---- */
+  body.is-fullscreen{justify-content:center;align-items:center;padding:0;background:#000;}
+  body.is-fullscreen h1,
+  body.is-fullscreen .conn,
+  body.is-fullscreen .status,
+  body.is-fullscreen .controls,
+  body.is-fullscreen .hint,
+  body.is-fullscreen .mode-row{display:none !important;}
+  body.is-fullscreen .board{box-shadow:none;background:transparent;border-radius:0;padding:0;}
+  body.is-fullscreen .board.buzz{box-shadow:0 0 0 0, inset 0 0 200px 40px var(--led-on-glow);}
+  body.is-fullscreen .digit{width:min(26vw,44vh);height:min(46vw,78vh);}
+  body.is-fullscreen .dot{width:min(3.5vw,6vh);height:min(3.5vw,6vh);}
+  body.is-fullscreen .dot-wrap{height:min(46vw,78vh);}
+
+  .conn{position:fixed;top:10px;right:14px;font-size:11px;letter-spacing:.1em;color:var(--muted);display:flex;align-items:center;gap:6px;}
+  .dotconn{width:8px;height:8px;border-radius:50%;background:#e74c3c;}
+  .dotconn.ok{background:#2ecc71;}
+  .hint{margin-top:22px;max-width:520px;text-align:center;font-size:12px;color:var(--muted);line-height:1.6;}
+</style>
+</head>
+<body>
+
+<div class="conn"><span class="dotconn" id="dot"></span><span id="connText">σύνδεση...</span></div>
+
+<h1>Basketball Shot Clock</h1>
+
+<div class="board" id="board">
+  <div class="mode-row">
+    <div class="mode-badge" id="badge24">24"</div>
+    <div class="mode-badge" id="badge14">14"</div>
+  </div>
+  <div class="display" id="display">
+    <div class="digit" id="dTens"></div>
+    <div class="digit" id="dOnes"></div>
+    <div class="dot-wrap"><div class="dot" id="dotPoint"></div></div>
+    <div class="digit" id="dTenths"></div>
+  </div>
+</div>
+
+<div class="status" id="statusText">Έτοιμο</div>
+
+<div class="controls">
+  <button id="btn24" class="clockBtn"><span id="icon24">▶</span><small>24"</small></button>
+  <button id="btn14" class="clockBtn"><span id="icon14">▶</span><small>14"</small></button>
+  <button id="resetBtn">↺ RESET</button>
+  <div class="manual-set">
+    <input type="number" id="manualTimeInput" placeholder="π.χ. 7.3" min="0" max="99" step="0.1" inputmode="decimal">
+    <button id="manualSetBtn">ΟΡΙΣΜΟΣ</button>
+  </div>
+  <button id="fsBtn">⛶ Πλήρης οθόνη (F)</button>
+</div>
+
+<div class="hint">
+  Όλες οι συσκευές που ανοίγουν αυτό το link βλέπουν το ίδιο ρολόι σε πραγματικό χρόνο.<br>
+  Πλήκτρα: <b>Space</b> = start/stop &nbsp; <b>1</b> = 24" &nbsp; <b>2</b> = 14" &nbsp; <b>R</b> = reset &nbsp; <b>F</b> = πλήρης οθόνη (Esc για έξοδο)
+</div>
+
+<script>
+let ws;
+let audioCtx;
+
+// ---- Buzzer sound ----
+// playBuzzer() first tries to play a real audio file at /buzzer.mp3
+// (just drop your own file named "buzzer.mp3" into the public/ folder).
+// If that file doesn't exist, or the browser can't play it for any reason,
+// it automatically falls back to the synthesized horn sound below.
+function playBuzzer(){
+  try{
+    const audio = new Audio('/buzzer.mp3');
+    audio.volume = 1.0;
+    let fellBack = false;
+    const fallback = () => {
+      if (fellBack) return; // don't double-play
+      fellBack = true;
+      playSynthBuzzer();
+    };
+    audio.addEventListener('error', fallback, { once: true });
+    const p = audio.play();
+    if (p && typeof p.catch === 'function') p.catch(fallback);
+  }catch(e){
+    playSynthBuzzer();
+  }
+}
+
+function playSynthBuzzer(){
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = audioCtx;
+    const now = ctx.currentTime;
+    const dur = 1.4;
+
+    const master = ctx.createGain();
+    master.gain.setValueAtTime(0.0001, now);
+    master.gain.exponentialRampToValueAtTime(0.9, now + 0.03);
+    master.gain.setValueAtTime(0.9, now + dur - 0.25);
+    master.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+    master.connect(ctx.destination);
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 900;
+    filter.Q.value = 1.2;
+    filter.connect(master);
+
+    // two slightly detuned saw oscillators = harsh buzzer beat, like an arena horn
+    [148, 151].forEach((freq) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.value = freq;
+      osc.connect(filter);
+      osc.start(now);
+      osc.stop(now + dur);
+    });
+
+    // a square-wave layer underneath for extra buzz texture
+    const sq = ctx.createOscillator();
+    sq.type = 'square';
+    sq.frequency.value = 74;
+    const sqGain = ctx.createGain();
+    sqGain.gain.value = 0.5;
+    sq.connect(sqGain).connect(filter);
+    sq.start(now);
+    sq.stop(now + dur);
+  }catch(e){ /* audio unlocks after first user tap, that's expected */ }
+}
+
+// ---- Seven-segment digit rendering ----
+const SEGMENT_MAP = {
+  '0':['a','b','c','d','e','f'],
+  '1':['b','c'],
+  '2':['a','b','g','e','d'],
+  '3':['a','b','g','c','d'],
+  '4':['f','g','b','c'],
+  '5':['a','f','g','c','d'],
+  '6':['a','f','g','e','c','d'],
+  '7':['a','b','c'],
+  '8':['a','b','c','d','e','f','g'],
+  '9':['a','b','c','d','f','g'],
+  '':[]
+};
+const ALL_SEGS = ['a','b','c','d','e','f','g'];
+
+function digitHTML(char){
+  const active = SEGMENT_MAP[char] || [];
+  return ALL_SEGS.map(s => `<div class="seg seg-${s}${active.includes(s)?' on':''}"></div>`).join('');
+}
+
+const dTens = document.getElementById('dTens');
+const dOnes = document.getElementById('dOnes');
+const dTenths = document.getElementById('dTenths');
+const dotPoint = document.getElementById('dotPoint');
+
+function renderTime(t){
+  t = Math.max(0, t);
+  if (t > 5 || t === 0 && !window.__lowMode) {
+    // whole-seconds mode
+  }
+  const showTenths = t <= 5 && t > 0 || (t <= 5);
+  if (showTenths){
+    const whole = Math.floor(t);
+    const frac = Math.round((t - whole) * 10) % 10;
+    dTens.innerHTML = digitHTML('');
+    dOnes.innerHTML = digitHTML(String(whole));
+    dTenths.innerHTML = digitHTML(String(frac));
+    dotPoint.classList.add('on');
+  } else {
+    const whole = Math.round(t);
+    const tens = whole >= 10 ? String(Math.floor(whole/10)) : '';
+    const ones = String(whole % 10);
+    dTens.innerHTML = digitHTML(tens);
+    dOnes.innerHTML = digitHTML(ones);
+    dTenths.innerHTML = digitHTML('');
+    dotPoint.classList.remove('on');
+  }
+}
+
+let currentState = { mode: 24, running: false, timeLeft: 24 };
+
+function render(state){
+  currentState = state;
+  renderTime(state.timeLeft);
+
+  document.getElementById('badge24').classList.toggle('active24', state.mode === 24);
+  document.getElementById('badge14').classList.toggle('active14', state.mode === 14);
+
+  const btn24 = document.getElementById('btn24');
+  const btn14 = document.getElementById('btn14');
+  const icon24 = document.getElementById('icon24');
+  const icon14 = document.getElementById('icon14');
+
+  const running24 = state.mode === 24 && state.running;
+  const running14 = state.mode === 14 && state.running;
+  btn24.classList.toggle('running', running24);
+  btn14.classList.toggle('running', running14);
+  icon24.textContent = running24 ? '⏸' : '▶';
+  icon14.textContent = running14 ? '⏸' : '▶';
+
+  const board = document.getElementById('board');
+  if (state.buzzer){ board.classList.add('buzz'); playBuzzer(); }
+  else { board.classList.remove('buzz'); }
+
+  const statusText = document.getElementById('statusText');
+  statusText.textContent = state.running
+    ? `Τρέχει (${state.mode}")`
+    : (state.timeLeft <= 0 ? 'ΤΕΛΟΣ ΧΡΟΝΟΥ' : `Παύση (${state.mode}")`);
+}
+
+function connect(){
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}`);
+  ws.onopen = () => { document.getElementById('dot').classList.add('ok'); document.getElementById('connText').textContent='συνδεδεμένο'; };
+  ws.onclose = () => { document.getElementById('dot').classList.remove('ok'); document.getElementById('connText').textContent='αποσυνδέθηκε, προσπάθεια...'; setTimeout(connect,1000); };
+  ws.onerror = () => ws.close();
+  ws.onmessage = (ev) => { const msg = JSON.parse(ev.data); if (msg.type==='state') render(msg); };
+}
+connect();
+
+function send(cmd){
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(cmd));
+  if(!audioCtx){ try{ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }catch(e){} }
+}
+
+document.getElementById('btn24').onclick = () => send({type:'toggle24'});
+document.getElementById('btn14').onclick = () => send({type:'toggle14'});
+document.getElementById('resetBtn').onclick = () => send({type:'reset'});
+
+// Manual time entry: type a number (e.g. 7.3) and press the button or Enter
+function submitManualTime(){
+  const input = document.getElementById('manualTimeInput');
+  const value = parseFloat(input.value);
+  if (!isNaN(value)){
+    send({type:'setTime', value});
+    input.value = '';
+    input.blur();
+  }
+}
+document.getElementById('manualSetBtn').onclick = submitManualTime;
+document.getElementById('manualTimeInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') submitManualTime();
+});
+
+// ---- Fullscreen: shows ONLY the clock, no buttons/labels ----
+function toggleFullscreen(){
+  if (!document.fullscreenElement){
+    document.documentElement.requestFullscreen().catch(()=>{});
+  } else {
+    document.exitFullscreen().catch(()=>{});
+  }
+}
+document.getElementById('fsBtn').onclick = toggleFullscreen;
+document.addEventListener('fullscreenchange', () => {
+  document.body.classList.toggle('is-fullscreen', !!document.fullscreenElement);
+});
+
+// ---- Keyboard shortcuts ----
+// Space = start/stop the currently active clock (24 or 14, whichever is running)
+// 1 = go to / toggle 24"   2 = go to / toggle 14"   R = reset   F = fullscreen
+document.addEventListener('keydown', (e) => {
+  // ignore if the browser is typing into some input (not used here, but safe)
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+  switch (e.code){
+    case 'Space':
+      e.preventDefault();
+      send(currentState.mode === 14 ? {type:'toggle14'} : {type:'toggle24'});
+      break;
+    case 'Digit1': case 'Numpad1':
+      e.preventDefault();
+      send({type:'toggle24'});
+      break;
+    case 'Digit2': case 'Numpad2':
+      e.preventDefault();
+      send({type:'toggle14'});
+      break;
+    case 'KeyR':
+      e.preventDefault();
+      send({type:'reset'});
+      break;
+    case 'KeyF':
+      e.preventDefault();
+      toggleFullscreen();
+      break;
+    default:
+      break;
+  }
+});
+
+// initial blank render
+renderTime(0);
+</script>
+
+</body>
+</html>
